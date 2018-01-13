@@ -17,9 +17,9 @@ Varclus has several advantages and disadvantages over other decomposition and di
 * Trade-off between art and science
 
 ## Description of the algorithm
-### * Step 1
+* ### Step 1
 	Initial split
-### * Step 2
+* ### Step 2
 	Recursively re-assign features to maximize total variance explained by cluster components
-### * Step 3
+* ### Step 3
 	Iteratively split child clusters until stopping criteria is reached
