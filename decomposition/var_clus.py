@@ -33,5 +33,14 @@ class VarClus(BaseDecompositionClass):
 
         self.n_split = n_split
 
-    def fit(self, dataframe):
+    @staticmethod
+    def __reassign_one_feature():
         pass
+
+    def fit(self, dataframe):
+        """
+        Decomposes given dataframe in an oblique hierarchical way.
+
+        :param dataframe: feature space that needs to be decomposed
+        """
+
