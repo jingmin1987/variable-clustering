@@ -7,4 +7,3 @@ class VarClus(BaseDecompositionClass):
     def __init__(self):
         pass
 
-    
