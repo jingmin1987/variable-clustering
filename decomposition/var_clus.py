@@ -22,6 +22,8 @@ class Cluster:
         self.dataframe = dataframe[features]
         self.n_split = n_split
 
+        self.dtype_check()
+
     def run_pca(self):
         self.pca = PCA(n_components=self.n_split)
         self.pca = self.pca.fit(self.dataframe)
@@ -32,6 +34,10 @@ class Cluster:
             self.pca_features.append(self.dataframe.dot(self.pca.components_[i]))
             self.pca_corr.append(self.dataframe.corrwith(self.pca_features[i]))
 
+    def dtype_check(self):
+        if type(self.features) is not list:
+            self.features = [self.features]
+
 
 class VarClus(BaseDecompositionClass):
     def __init__(self,
@@ -40,14 +46,19 @@ class VarClus(BaseDecompositionClass):
         self.n_split = n_split
 
     @staticmethod
-    def __reassign_one_feature_pca(cluster_from, cluster_to, feature, other_clusters):
+    def __reassign_one_feature_pca(cluster_from,
+                                   cluster_to,
+                                   feature,
+                                   other_clusters=None):
+
+        other_clusters = other_clusters or []
         cluster_from_new = Cluster(dataframe=cluster_from.drop(feature, axis=1),
                                    n_split=cluster_from.n_split)
         cluster_to_new = Cluster(dataframe=cluster_to.join(cluster_from.dataframe[feature]),
                                  n_split=cluster_to.n_split)
 
         for cluster in (cluster_from, cluster_from_new, cluster_to, cluster_to_new):
-            if not getattr((cluster, 'pca', False)):
+            if not getattr(cluster, 'pca', False):
                 cluster.run_pca()
 
         explained_variance_before_assignment = pd.concat(
@@ -67,11 +78,32 @@ class VarClus(BaseDecompositionClass):
             return cluster_from, cluster_to, False
 
     @staticmethod
-    def __reassign_features(child_clusters, max_tries=5):
-        pass
+    def __reassign_features_pca(child_clusters, max_tries=None):
+        if len(child_clusters) < 2:
+            return child_clusters
+
+        n_tries = 0
+
+        # Loop through all features for all cluster combinations
+        for i, child_cluster in enumerate(child_clusters):
+            other_clusters = list(set(child_clusters) - set(child_cluster))
+
+            for feature in child_cluster.features:
+                for j, other_cluster in enumerate(other_clusters):
+                    remaining_clusters = list(set(other_clusters) - set(other_cluster))
+                    child_clusters[i], other_clusters[j], change_flag = \
+                        VarClus.__reassign_one_feature_pca(child_cluster,
+                                                           other_cluster,
+                                                           feature,
+                                                           remaining_clusters)
+                    if not change_flag:
+                        n_tries += 1
+
+                    if max_tries and n_tries >= max_tries:
+                        return child_clusters
 
     @staticmethod
-    def __nearest_component_sorting(initial_child_clusters):
+    def __nearest_component_sorting_once(initial_child_clusters):
         for cluster in initial_child_clusters:
             if not getattr(cluster, 'pca', False):
                 cluster.run_pca()
@@ -97,6 +129,31 @@ class VarClus(BaseDecompositionClass):
                               if condition])
             for membership in cluster_membership
         ]
+
+        # Check if clusters are unchanged
+        old_cluster_features = set([
+            tuple(cluster.features) for cluster in initial_child_clusters
+        ])
+
+        new_cluster_features = set([
+            tuple(cluster.features) for cluster in new_child_clusters
+        ])
+
+        return new_child_clusters, old_cluster_features == new_cluster_features
+
+    @staticmethod
+    def __nearest_component_sorting(initial_child_clusters, max_tries=None):
+        n_tries = 0
+        change_flag = True
+        new_child_clusters = initial_child_clusters
+
+        while change_flag:
+            new_child_clusters, change_flag = \
+                VarClus.__nearest_component_sorting_once(new_child_clusters)
+
+            n_tries += 1
+            if max_tries and n_tries >= max_tries:
+                break
 
         return new_child_clusters
 
