@@ -34,8 +34,26 @@ class VarClus(BaseDecompositionClass):
         self.n_split = n_split
 
     @staticmethod
-    def __reassign_one_feature():
-        pass
+    def __reassign_one_feature(cluster_from, cluster_to, feature):
+        cluster_from_new = Cluster(dataframe=cluster_from.drop(feature, axis=1),
+                                   n_split=cluster_from.n_split)
+        cluster_to_new = Cluster(dataframe=cluster_to.join(cluster_from.dataframe[feature]),
+                                 n_split=cluster_to.n_split)
+
+        for cluster in (cluster_from, cluster_from_new, cluster_to, cluster_to_new):
+            if not getattr((cluster, 'pca', False)):
+                cluster.run_pca()
+
+        explained_variance_before_assignment = \
+            cluster_from.pca.explained_variance_[0] + cluster_to.pca.explained_variance_[0]
+
+        explained_variance_after_assignment = \
+            cluster_from_new.pca.explained_variance_[0] + cluster_to_new.pca.explained_variance_[0]
+
+        if explained_variance_after_assignment > explained_variance_before_assignment:
+            return cluster_from_new, cluster_to_new
+        else:
+            return cluster_from, cluster_to
 
     @staticmethod
     def __one_step_decompose(cluster):
