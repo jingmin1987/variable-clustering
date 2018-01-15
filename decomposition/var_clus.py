@@ -38,8 +38,32 @@ class VarClus(BaseDecompositionClass):
         pass
 
     @staticmethod
-    def __one_step_decompose():
-        pass
+    def __one_step_decompose(cluster):
+        if not getattr(cluster, 'pca', False):
+            cluster.run_pca()
+
+        pca_features = []
+        pca_corr = []
+        child_clusters = []
+
+        for i in range(cluster.n_split):
+            pca_features.append(cluster.dataframe.dot(cluster.pca.components_[i]))
+            pca_corr.append(cluster.dataframe.corrwith(pca_features[i]))
+
+        corr_table = pd.concat(pca_corr, axis=1)
+        corr_max = corr_table.max(axis=1)
+        cluster_membership = corr_table.apply(lambda x: x == corr_max)
+
+        for i in range(cluster.n_split):
+            child_clusters.append(
+                Cluster(dataframe=cluster.dataframe,
+                        n_split=cluster.n_split,
+                        features=[feature for (feature, condition)
+                                  in cluster_membership[i].to_dict().items()
+                                  if condition])
+            )
+
+        return child_clusters
 
     def fit(self, dataframe):
         """
@@ -50,6 +74,9 @@ class VarClus(BaseDecompositionClass):
 
         root_cluster = Cluster(dataframe,
                                self.n_split)
-        
+
+        root_cluster.run_pca()
+
+
 
 
