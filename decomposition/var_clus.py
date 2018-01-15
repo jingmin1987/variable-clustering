@@ -25,6 +25,12 @@ class Cluster:
     def run_pca(self):
         self.pca = PCA(n_components=self.n_split)
         self.pca = self.pca.fit(self.dataframe)
+        self.pca_features = []
+        self.pca_corr = []
+
+        for i in range(self.n_split):
+            self.pca_features.append(self.dataframe.dot(self.pca.components_[i]))
+            self.pca_corr.append(self.dataframe.corrwith(self.pca_features[i]))
 
 
 class VarClus(BaseDecompositionClass):
@@ -51,24 +57,22 @@ class VarClus(BaseDecompositionClass):
             cluster_from_new.pca.explained_variance_[0] + cluster_to_new.pca.explained_variance_[0]
 
         if explained_variance_after_assignment > explained_variance_before_assignment:
-            return cluster_from_new, cluster_to_new
+            return cluster_from_new, cluster_to_new, True
         else:
-            return cluster_from, cluster_to
+            return cluster_from, cluster_to, False
+
+    @staticmethod
+    def __reassign_features(child_clusters, max_tries=5):
+
 
     @staticmethod
     def __one_step_decompose(cluster):
         if not getattr(cluster, 'pca', False):
             cluster.run_pca()
 
-        pca_features = []
-        pca_corr = []
         child_clusters = []
 
-        for i in range(cluster.n_split):
-            pca_features.append(cluster.dataframe.dot(cluster.pca.components_[i]))
-            pca_corr.append(cluster.dataframe.corrwith(pca_features[i]))
-
-        corr_table = pd.concat(pca_corr, axis=1)
+        corr_table = pd.concat(cluster.pca_corr, axis=1)
         corr_max = corr_table.max(axis=1)
         cluster_membership = corr_table.apply(lambda x: x == corr_max)
 
