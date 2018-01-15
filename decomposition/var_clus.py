@@ -8,7 +8,7 @@ from decomposition.base_class import BaseDecompositionClass
 
 class Cluster:
     """
-    A container that holds the following information
+    A tree-node type container that holds the following information
         - features in this cluster
         - first n PCA components and their corresponding eigenvalues
     """
@@ -16,11 +16,15 @@ class Cluster:
     def __init__(self,
                  dataframe,
                  n_split=2,
-                 features=None):
+                 features=None,
+                 parents=None,
+                 children=None):
 
         self.features = features or dataframe.columns
         self.dataframe = dataframe[features]
         self.n_split = n_split
+        self.parents = parents or []
+        self.children = children or []
 
         self.dtype_check()
 
@@ -38,12 +42,22 @@ class Cluster:
         if type(self.features) is not list:
             self.features = [self.features]
 
+    def return_all_leaves(self):
+        if self.children == []:
+            return self
+
+        return [child.return_all_leaves() for child in self.children]
+
 
 class VarClus(BaseDecompositionClass):
     def __init__(self,
-                 n_split=2):
+                 n_split=2,
+                 max_eigenvalue=1,
+                 max_tries=None):
 
         self.n_split = n_split
+        self.max_eigenvalue = max_eigenvalue
+        self.max_tries = max_tries
 
     @staticmethod
     def __reassign_one_feature_pca(cluster_from,
@@ -53,9 +67,11 @@ class VarClus(BaseDecompositionClass):
 
         other_clusters = other_clusters or []
         cluster_from_new = Cluster(dataframe=cluster_from.drop(feature, axis=1),
-                                   n_split=cluster_from.n_split)
+                                   n_split=cluster_from.n_split,
+                                   parents=cluster_from.parents)
         cluster_to_new = Cluster(dataframe=cluster_to.join(cluster_from.dataframe[feature]),
-                                 n_split=cluster_to.n_split)
+                                 n_split=cluster_to.n_split,
+                                 parents=cluster_to.parents)
 
         for cluster in (cluster_from, cluster_from_new, cluster_to, cluster_to_new):
             if not getattr(cluster, 'pca', False):
@@ -126,7 +142,8 @@ class VarClus(BaseDecompositionClass):
                     n_split=initial_child_clusters[0].n_split,
                     features=[feature for (feature, condition)
                               in cluster_membership[membership].to_dict().items()
-                              if condition])
+                              if condition],
+                    parents=initial_child_clusters[0].parents)
             for membership in cluster_membership
         ]
 
@@ -158,38 +175,68 @@ class VarClus(BaseDecompositionClass):
         return new_child_clusters
 
     @staticmethod
-    def __one_step_decompose(cluster):
-        if not getattr(cluster, 'pca', False):
+    def __one_step_decompose(cluster, max_tries=None):
+        if not getattr(cluster, 'pac', False):
             cluster.run_pca()
-
-        child_clusters = []
 
         corr_table = pd.concat(cluster.pca_corr, axis=1)
         corr_max = corr_table.max(axis=1)
         cluster_membership = corr_table.apply(lambda x: x == corr_max)
 
-        for i in range(cluster.n_split):
-            child_clusters.append(
-                Cluster(dataframe=cluster.dataframe,
-                        n_split=cluster.n_split,
-                        features=[feature for (feature, condition)
-                                  in cluster_membership[i].to_dict().items()
-                                  if condition])
-            )
+        child_clusters = [
+            Cluster(dataframe=cluster.dataframe,
+                    n_split=cluster.n_split,
+                    features=[feature for (feature, condition)
+                              in cluster_membership[membership].to_dict().items()
+                              if condition],
+                    parents=[cluster])
+            for membership in cluster_membership
+        ]
+
+        # Phase 1: nearest component sorting
+        child_clusters = \
+            VarClus.__nearest_component_sorting(child_clusters, max_tries=max_tries)
+
+        # Phase 2: search algorithm
+        child_clusters = \
+            VarClus.__reassign_features_pca(child_clusters, max_tries=max_tries)
 
         return child_clusters
 
-    def fit(self, dataframe):
+    @staticmethod
+    def __decompose(cluster, max_eigenvalue, max_tries):
+        if not getattr(cluster, 'pca', False):
+            cluster.run_pca()
+
+        if cluster.pca.explained_variance_[-1] >= max_eigenvalue:
+            cluster.children = VarClus.__one_step_decompose(cluster, max_tries=max_tries)
+
+            for child_cluster in cluster.children:
+                VarClus.__decompose(child_cluster,
+                                    max_eigenvalue,
+                                    max_tries)
+
+    def decompose(self, dataframe):
         """
         Decomposes given dataframe in an oblique hierarchical way.
 
         :param dataframe: feature space that needs to be decomposed
         """
 
-        root_cluster = Cluster(dataframe,
+        self.cluster = Cluster(dataframe,
                                self.n_split)
 
-        root_cluster.run_pca()
+        VarClus.__decompose(self.cluster,
+                            self.max_eigenvalue,
+                            self.max_tries)
+
+    @property
+    def final_cluster_structure(self):
+        if not getattr(self, 'cluster', False):
+            print('cluster was not fitted yet')
+            return dict()
+
+        #TODO: all leaves
 
 
 

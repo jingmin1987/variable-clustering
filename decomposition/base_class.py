@@ -7,7 +7,7 @@ class BaseDecompositionClass:
     __metaclass__ = abc.ABCMeta
 
     @abc.abstractmethod
-    def fit(self, dataframe):
+    def decompose(self, dataframe):
         """
 
         :param dataframe: a pandas dataframe that includes feature space to be decomposed
