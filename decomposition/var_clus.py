@@ -40,7 +40,7 @@ class VarClus(BaseDecompositionClass):
         self.n_split = n_split
 
     @staticmethod
-    def __reassign_one_feature(cluster_from, cluster_to, feature):
+    def __reassign_one_feature_pca(cluster_from, cluster_to, feature, other_clusters):
         cluster_from_new = Cluster(dataframe=cluster_from.drop(feature, axis=1),
                                    n_split=cluster_from.n_split)
         cluster_to_new = Cluster(dataframe=cluster_to.join(cluster_from.dataframe[feature]),
@@ -50,11 +50,16 @@ class VarClus(BaseDecompositionClass):
             if not getattr((cluster, 'pca', False)):
                 cluster.run_pca()
 
-        explained_variance_before_assignment = \
-            cluster_from.pca.explained_variance_[0] + cluster_to.pca.explained_variance_[0]
+        explained_variance_before_assignment = pd.concat(
+            [cluster.pca_features[0] for cluster in ([cluster_from, cluster_to] + other_clusters)],
+            axis=1
+        ).conv().as_matrix().trace()
 
-        explained_variance_after_assignment = \
-            cluster_from_new.pca.explained_variance_[0] + cluster_to_new.pca.explained_variance_[0]
+        explained_variance_after_assignment = pd.concat(
+            [cluster.pca_features[0] for cluster in ([cluster_from_new, cluster_to_new] +
+                                                      other_clusters)],
+            axis=1
+        ).conv().as_matrix().trace()
 
         if explained_variance_after_assignment > explained_variance_before_assignment:
             return cluster_from_new, cluster_to_new, True
@@ -63,7 +68,37 @@ class VarClus(BaseDecompositionClass):
 
     @staticmethod
     def __reassign_features(child_clusters, max_tries=5):
+        pass
 
+    @staticmethod
+    def __nearest_component_sorting(initial_child_clusters):
+        for cluster in initial_child_clusters:
+            if not getattr(cluster, 'pca', False):
+                cluster.run_pca()
+
+        full_dataframe = pd.concat(
+            [cluster.dataframe for cluster in initial_child_clusters],
+            axis=1
+        )
+
+        corr_table = pd.concat(
+            [full_dataframe.dot(cluster.pca_features[0]) for cluster in initial_child_clusters],
+            axis=1
+        )
+
+        corr_max = corr_table.max(axis=1)
+        cluster_membership = corr_table.apply(lambda x: x == corr_max)
+
+        new_child_clusters = [
+            Cluster(dataframe=full_dataframe,
+                    n_split=initial_child_clusters[0].n_split,
+                    features=[feature for (feature, condition)
+                              in cluster_membership[membership].to_dict().items()
+                              if condition])
+            for membership in cluster_membership
+        ]
+
+        return new_child_clusters
 
     @staticmethod
     def __one_step_decompose(cluster):
