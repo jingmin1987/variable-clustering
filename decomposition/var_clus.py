@@ -21,7 +21,7 @@ class Cluster:
                  children=None):
 
         self.features = features or dataframe.columns
-        self.dataframe = dataframe[features]
+        self.dataframe = dataframe[self.features]
         self.n_split = n_split
         self.parents = parents or []
         self.children = children or []
@@ -236,7 +236,8 @@ class VarClus(BaseDecompositionClass):
             print('cluster was not fitted yet')
             return dict()
 
-        #TODO: all leaves
+        # TODO: make it a dict
+        return self.cluster.return_all_leaves()
 
 
 
