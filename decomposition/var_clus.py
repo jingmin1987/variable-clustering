@@ -49,7 +49,7 @@ class Cluster:
         return [child.return_all_leaves() for child in self.children]
 
     def __key(self):
-        return (set(self.features), self.dataframe.shape)
+        return (tuple(self.features), self.dataframe.shape)
 
     def __eq__(self, other):
         return self.__key() == other.__key()
@@ -75,10 +75,11 @@ class VarClus(BaseDecompositionClass):
                                    other_clusters=None):
 
         other_clusters = other_clusters or []
-        cluster_from_new = Cluster(dataframe=cluster_from.drop(feature, axis=1),
+        cluster_from_new = Cluster(dataframe=cluster_from.dataframe.drop(feature, axis=1),
                                    n_split=cluster_from.n_split,
                                    parents=cluster_from.parents)
-        cluster_to_new = Cluster(dataframe=cluster_to.join(cluster_from.dataframe[feature]),
+        cluster_to_new = Cluster(dataframe=cluster_to.dataframe \
+                                 .join(cluster_from.dataframe[feature]),
                                  n_split=cluster_to.n_split,
                                  parents=cluster_to.parents)
 
@@ -89,13 +90,13 @@ class VarClus(BaseDecompositionClass):
         explained_variance_before_assignment = pd.concat(
             [cluster.pca_features[0] for cluster in ([cluster_from, cluster_to] + other_clusters)],
             axis=1
-        ).conv().as_matrix().trace()
+        ).cov().as_matrix().trace()
 
         explained_variance_after_assignment = pd.concat(
             [cluster.pca_features[0] for cluster in ([cluster_from_new, cluster_to_new] +
                                                       other_clusters)],
             axis=1
-        ).conv().as_matrix().trace()
+        ).cov().as_matrix().trace()
 
         if explained_variance_after_assignment > explained_variance_before_assignment:
             return cluster_from_new, cluster_to_new, True
@@ -111,11 +112,11 @@ class VarClus(BaseDecompositionClass):
 
         # Loop through all features for all cluster combinations
         for i, child_cluster in enumerate(child_clusters):
-            other_clusters = list(set(child_clusters) - set(child_cluster))
+            other_clusters = list(set(child_clusters) - {child_cluster})
 
             for feature in child_cluster.features:
                 for j, other_cluster in enumerate(other_clusters):
-                    remaining_clusters = list(set(other_clusters) - set(other_cluster))
+                    remaining_clusters = list(set(other_clusters) - {other_cluster})
                     child_clusters[i], other_clusters[j], change_flag = \
                         VarClus.__reassign_one_feature_pca(child_cluster,
                                                            other_cluster,
