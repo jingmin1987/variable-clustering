@@ -48,6 +48,15 @@ class Cluster:
 
         return [child.return_all_leaves() for child in self.children]
 
+    def __key(self):
+        return (set(self.features), self.dataframe.shape)
+
+    def __eq__(self, other):
+        return self.__key() == other.__key()
+
+    def __hash__(self):
+        return hash(self.__key())
+
 
 class VarClus(BaseDecompositionClass):
     def __init__(self,
@@ -130,7 +139,8 @@ class VarClus(BaseDecompositionClass):
         )
 
         corr_table = pd.concat(
-            [full_dataframe.dot(cluster.pca_features[0]) for cluster in initial_child_clusters],
+            [full_dataframe.corrwith(cluster.pca_features[0]) for cluster in
+             initial_child_clusters],
             axis=1
         )
 
