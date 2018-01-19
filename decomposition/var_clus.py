@@ -20,7 +20,7 @@ class Cluster:
                  parents=None,
                  children=None):
 
-        # Using dataframe.columns will generate an index-list which is not hashable
+        # Using dataframe.columns will generate an index-list which is not convertible to set
         self.features = features or list(dataframe)
         self.dataframe = dataframe[self.features]
         self.n_split = n_split
