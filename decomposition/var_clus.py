@@ -20,7 +20,8 @@ class Cluster:
                  parents=None,
                  children=None):
 
-        self.features = features or dataframe.columns
+        # Using dataframe.columns will generate an index-list which is not hashable
+        self.features = features or list(dataframe)
         self.dataframe = dataframe[self.features]
         self.n_split = n_split
         self.parents = parents or []
@@ -116,6 +117,8 @@ class VarClus(BaseDecompositionClass):
 
             for feature in child_cluster.features:
                 for j, other_cluster in enumerate(other_clusters):
+                    print(other_cluster)
+                    print(other_clusters)
                     remaining_clusters = list(set(other_clusters) - {other_cluster})
                     child_clusters[i], other_clusters[j], change_flag = \
                         VarClus.__reassign_one_feature_pca(child_cluster,
