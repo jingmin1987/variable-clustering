@@ -70,10 +70,10 @@ class VarClus(BaseDecompositionClass):
         self.max_tries = max_tries
 
     @staticmethod
-    def __reassign_one_feature_pca(cluster_from,
-                                   cluster_to,
-                                   feature,
-                                   other_clusters=None):
+    def reassign_one_feature_pca(cluster_from,
+                                 cluster_to,
+                                 feature,
+                                 other_clusters=None):
 
         other_clusters = other_clusters or []
         cluster_from_new = Cluster(dataframe=cluster_from.dataframe.drop(feature, axis=1),
@@ -94,8 +94,8 @@ class VarClus(BaseDecompositionClass):
         ).cov().as_matrix().trace()
 
         explained_variance_after_assignment = pd.concat(
-            [cluster.pca_features[0] for cluster in ([cluster_from_new, cluster_to_new] +
-                                                      other_clusters)],
+            [cluster.pca_features[0] for cluster in ([cluster_from_new, cluster_to_new]
+                                                      + other_clusters)],
             axis=1
         ).cov().as_matrix().trace()
 
@@ -105,7 +105,7 @@ class VarClus(BaseDecompositionClass):
             return cluster_from, cluster_to, False
 
     @staticmethod
-    def __reassign_features_pca(child_clusters, max_tries=None):
+    def reassign_features_pca(child_clusters, max_tries=None):
         if len(child_clusters) < 2:
             return child_clusters
 
@@ -117,22 +117,26 @@ class VarClus(BaseDecompositionClass):
 
             for feature in child_cluster.features:
                 for j, other_cluster in enumerate(other_clusters):
-                    print(other_cluster)
-                    print(other_clusters)
                     remaining_clusters = list(set(other_clusters) - {other_cluster})
                     child_clusters[i], other_clusters[j], change_flag = \
-                        VarClus.__reassign_one_feature_pca(child_cluster,
-                                                           other_cluster,
-                                                           feature,
-                                                           remaining_clusters)
+                        VarClus.reassign_one_feature_pca(child_cluster,
+                                                         other_cluster,
+                                                         feature,
+                                                         remaining_clusters)
+                    # TODO: log
+                    if change_flag:
+                        print('feature {} was re-assigned'.format(feature))
+
                     if not change_flag:
                         n_tries += 1
 
                     if max_tries and n_tries >= max_tries:
                         return child_clusters
 
+        return child_clusters
+
     @staticmethod
-    def __nearest_component_sorting_once(initial_child_clusters):
+    def nearest_component_sorting_once(initial_child_clusters):
         for cluster in initial_child_clusters:
             if not getattr(cluster, 'pca', False):
                 cluster.run_pca()
@@ -173,14 +177,14 @@ class VarClus(BaseDecompositionClass):
         return new_child_clusters, old_cluster_features == new_cluster_features
 
     @staticmethod
-    def __nearest_component_sorting(initial_child_clusters, max_tries=None):
+    def nearest_component_sorting(initial_child_clusters, max_tries=None):
         n_tries = 0
         change_flag = True
         new_child_clusters = initial_child_clusters
 
         while change_flag:
             new_child_clusters, change_flag = \
-                VarClus.__nearest_component_sorting_once(new_child_clusters)
+                VarClus.nearest_component_sorting_once(new_child_clusters)
 
             n_tries += 1
             if max_tries and n_tries >= max_tries:
@@ -189,7 +193,7 @@ class VarClus(BaseDecompositionClass):
         return new_child_clusters
 
     @staticmethod
-    def __one_step_decompose(cluster, max_tries=None):
+    def one_step_decompose(cluster, max_tries=None):
         if not getattr(cluster, 'pac', False):
             cluster.run_pca()
 
@@ -209,11 +213,11 @@ class VarClus(BaseDecompositionClass):
 
         # Phase 1: nearest component sorting
         child_clusters = \
-            VarClus.__nearest_component_sorting(child_clusters, max_tries=max_tries)
+            VarClus.nearest_component_sorting(child_clusters, max_tries=max_tries)
 
         # Phase 2: search algorithm
         child_clusters = \
-            VarClus.__reassign_features_pca(child_clusters, max_tries=max_tries)
+            VarClus.reassign_features_pca(child_clusters, max_tries=max_tries)
 
         return child_clusters
 
@@ -223,7 +227,7 @@ class VarClus(BaseDecompositionClass):
             cluster.run_pca()
 
         if cluster.pca.explained_variance_[-1] >= max_eigenvalue:
-            cluster.children = VarClus.__one_step_decompose(cluster, max_tries=max_tries)
+            cluster.children = VarClus.one_step_decompose(cluster, max_tries=max_tries)
 
             for child_cluster in cluster.children:
                 VarClus.__decompose(child_cluster,
