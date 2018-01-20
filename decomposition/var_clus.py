@@ -1,4 +1,6 @@
 # Definition for class VarClus
+# TODO: add log function, add cluster number
+
 
 import pandas as pd
 from sklearn.decomposition import PCA
