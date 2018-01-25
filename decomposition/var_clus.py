@@ -86,6 +86,12 @@ class VarClus(BaseDecompositionClass):
                                  n_split=cluster_to.n_split,
                                  parents=cluster_to.parents)
 
+        if len(cluster_from.features + cluster_to.features) != \
+            len(cluster_from_new.features + cluster_to_new.features):
+            missing_feature = set(cluster_from.features + cluster_to.features) - \
+                set(cluster_from_new.features + cluster_to_new.features)
+            print('feature missing....the missing feature is...{}').format(missing_feature)
+
         for cluster in (cluster_from, cluster_from_new, cluster_to, cluster_to_new):
             if not getattr(cluster, 'pca', False):
                 cluster.run_pca()
