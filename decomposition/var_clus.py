@@ -107,6 +107,10 @@ class VarClus(BaseDecompositionClass):
             axis=1
         ).cov().as_matrix().trace()
 
+        print('assessing feature {}'.format(feature))
+        print('current EV is {0}, new EV is {1}'.format(explained_variance_before_assignment,
+                                                        explained_variance_after_assignment))
+
         if explained_variance_after_assignment > explained_variance_before_assignment:
             return cluster_from_new, cluster_to_new, True
         else:
@@ -123,6 +127,7 @@ class VarClus(BaseDecompositionClass):
         for i, child_cluster in enumerate(child_clusters):
             other_clusters = list(set(child_clusters) - {child_cluster})
 
+            # TODO: something wrong with the logic
             for feature in child_cluster.features:
                 for j, other_cluster in enumerate(other_clusters):
                     remaining_clusters = list(set(other_clusters) - {other_cluster})
