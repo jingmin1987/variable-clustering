@@ -1,5 +1,8 @@
 # notebook autosave
 .ipynb_checkpoints
 
+# notebooks
+/notebooks
+
 # pycharm settings
 .idea
