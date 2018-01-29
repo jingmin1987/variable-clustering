@@ -1,5 +1,5 @@
 # Definition for class VarClus
-# TODO: add log function, add cluster number
+# TODO: add log function, and docstrings, and cleanup the prints
 
 
 import pandas as pd
@@ -16,12 +16,7 @@ class Cluster:
         - first n PCA components and their corresponding eigenvalues
     """
 
-    def __init__(self,
-                 dataframe,
-                 n_split=2,
-                 features=None,
-                 parents=None,
-                 children=None):
+    def __init__(self, dataframe, n_split=2, features=None, parents=None, children=None, name=None):
 
         # Using dataframe.columns will generate an index-list which is not convertible to set
         self.features = features or list(dataframe)
@@ -29,6 +24,7 @@ class Cluster:
         self.n_split = n_split
         self.parents = parents or []
         self.children = children or []
+        self.name = name or ''
 
         self.input_check()
 
@@ -67,18 +63,13 @@ class Cluster:
 
 
 class VarClus(BaseDecompositionClass):
-    def __init__(self,
-                 n_split=2,
-                 max_eigenvalue=1,
-                 max_tries=None):
-
+    def __init__(self, n_split=2, max_eigenvalue=1, max_tries=None):
         self.n_split = n_split
         self.max_eigenvalue = max_eigenvalue
         self.max_tries = max_tries
 
     @staticmethod
     def reassign_one_feature_pca(cluster_from, cluster_to, feature, other_clusters=None):
-
         if not (feature in cluster_from.features):
             return cluster_from, cluster_to
 
@@ -103,11 +94,6 @@ class VarClus(BaseDecompositionClass):
             len(cluster_from_new.features + cluster_to_new.features):
             missing_feature = set(cluster_from.features + cluster_to.features) - \
                 set(cluster_from_new.features + cluster_to_new.features)
-            print('old len: {0} and new len {1}'.format(len(cluster_from.features
-                                                            + cluster_to.features),
-                                                        len(cluster_from_new.features
-                                                            + cluster_to_new.features)
-                                                        ))
             print('feature missing....the missing feature is...{}').format(missing_feature)
 
         for cluster in [cluster_from, cluster_from_new, cluster_to, cluster_to_new]:
@@ -141,13 +127,14 @@ class VarClus(BaseDecompositionClass):
 
         # Loop through all features for all cluster combinations
         for i in range(len(child_clusters)):
+
+            if len(child_clusters[i].features) == 1:
+                continue
+
             for feature in child_clusters[i].features:
                 for j in range(len(child_clusters)):
 
                     if i == j:
-                        continue
-
-                    if len(child_clusters[i].features) == 1:
                         continue
 
                     remaining_clusters = list(set(child_clusters)
@@ -183,15 +170,12 @@ class VarClus(BaseDecompositionClass):
             [cluster.dataframe for cluster in initial_child_clusters],
             axis=1
         )
-
         corr_table = pd.concat(
             [full_dataframe.corrwith(cluster.pca_features[0]) for cluster in
              initial_child_clusters],
             axis=1
         )
-
         corr_sq_table = corr_table ** 2
-
         corr_max = corr_sq_table.max(axis=1)
         cluster_membership = corr_sq_table.apply(lambda x: x == corr_max)
 
@@ -208,8 +192,9 @@ class VarClus(BaseDecompositionClass):
                     features=[feature for (feature, condition)
                               in cluster_membership[membership].to_dict().items()
                               if condition],
-                    parents=initial_child_clusters[0].parents)
-            for membership in cluster_membership
+                    parents=initial_child_clusters[0].parents,
+                    name='{0}-{1}'.format(initial_child_clusters[0].parents[0].name, str(i)))
+            for i, membership in enumerate(cluster_membership)
         ]
 
         # Check if clusters are unchanged
@@ -262,8 +247,9 @@ class VarClus(BaseDecompositionClass):
                     features=[feature for (feature, condition)
                               in cluster_membership[membership].to_dict().items()
                               if condition],
-                    parents=[cluster])
-            for membership in cluster_membership
+                    parents=[cluster],
+                    name='{0}-{1}'.format(cluster.name, str(i)))
+            for i, membership in enumerate(cluster_membership)
         ]
 
         # Phase 1: nearest component sorting
@@ -303,7 +289,8 @@ class VarClus(BaseDecompositionClass):
         """
 
         self.cluster = Cluster(dataframe,
-                               self.n_split)
+                               self.n_split,
+                               name='cluster-0')
 
         VarClus.__decompose(self.cluster,
                             self.max_eigenvalue,
