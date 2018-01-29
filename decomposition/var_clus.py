@@ -48,9 +48,10 @@ class Cluster:
 
     def return_all_leaves(self):
         if self.children == []:
-            return self
+            return [self]
 
-        return [child.return_all_leaves() for child in self.children]
+        child_leaves_nested = [child.return_all_leaves() for child in self.children]
+        return [leaf for leaves in child_leaves_nested for leaf in leaves]
 
     def __key(self):
         return (tuple(self.features), self.dataframe.shape)
@@ -304,7 +305,6 @@ class VarClus(BaseDecompositionClass):
             print('cluster was not fitted yet')
             return dict()
 
-        # TODO: make it a dict
         return self.cluster.return_all_leaves()
 
 

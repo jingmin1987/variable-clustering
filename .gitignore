@@ -2,7 +2,7 @@
 .ipynb_checkpoints
 
 # notebooks
-/notebooks
+.ipynb
 
 # pycharm settings
 .idea
