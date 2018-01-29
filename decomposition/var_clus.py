@@ -86,6 +86,8 @@ class VarClus(BaseDecompositionClass):
             print('feature {} is already in cluster_to'.format(feature))
             return cluster_from, cluster_to
 
+        print('assessing feature {}'.format(feature))
+
         other_clusters = other_clusters or []
 
         cluster_from_new_df = cluster_from.dataframe.drop(feature, axis=1)
@@ -101,6 +103,11 @@ class VarClus(BaseDecompositionClass):
             len(cluster_from_new.features + cluster_to_new.features):
             missing_feature = set(cluster_from.features + cluster_to.features) - \
                 set(cluster_from_new.features + cluster_to_new.features)
+            print('old len: {0} and new len {1}'.format(len(cluster_from.features
+                                                            + cluster_to.features),
+                                                        len(cluster_from_new.features
+                                                            + cluster_to_new.features)
+                                                        ))
             print('feature missing....the missing feature is...{}').format(missing_feature)
 
         for cluster in [cluster_from, cluster_from_new, cluster_to, cluster_to_new]:
@@ -117,7 +124,6 @@ class VarClus(BaseDecompositionClass):
                                                                 + other_clusters)],
         )
 
-        print('assessing feature {}'.format(feature))
         print('current EV is {0}, new EV is {1}'.format(explained_variance_before_assignment,
                                                         explained_variance_after_assignment))
 
@@ -189,6 +195,13 @@ class VarClus(BaseDecompositionClass):
         corr_max = corr_sq_table.max(axis=1)
         cluster_membership = corr_sq_table.apply(lambda x: x == corr_max)
 
+        if (cluster_membership.sum() == 0).sum():
+            print('Near orthogonal feature clusters detected in NCS phase. Randomizing...')
+            i_range, j_range = cluster_membership.shape
+            for i in range(i_range):
+                for j in range(j_range):
+                    cluster_membership.iloc[i, j] = (i % j_range == j)
+
         new_child_clusters = [
             Cluster(dataframe=full_dataframe,
                     n_split=initial_child_clusters[0].n_split,
@@ -228,13 +241,20 @@ class VarClus(BaseDecompositionClass):
 
     @staticmethod
     def one_step_decompose(cluster, max_tries=None):
-        if not getattr(cluster, 'pac', False):
+        if not getattr(cluster, 'pca', False):
             cluster.run_pca()
 
         corr_table = pd.concat(cluster.pca_corr, axis=1)
         corr_sq_table = corr_table ** 2
         corr_max = corr_sq_table.max(axis=1)
         cluster_membership = corr_sq_table.apply(lambda x: x == corr_max)
+
+        if (cluster_membership.sum() == 0).sum():
+            print('Near orthogonal feature clusters detected in NCS phase. Randomizing...')
+            i_range, j_range = cluster_membership.shape
+            for i in range(i_range):
+                for j in range(j_range):
+                    cluster_membership.iloc[i, j] = (i % j_range == j)
 
         child_clusters = [
             Cluster(dataframe=cluster.dataframe,
