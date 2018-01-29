@@ -184,8 +184,10 @@ class VarClus(BaseDecompositionClass):
             axis=1
         )
 
-        corr_max = corr_table.max(axis=1)
-        cluster_membership = corr_table.apply(lambda x: x == corr_max)
+        corr_sq_table = corr_table ** 2
+
+        corr_max = corr_sq_table.max(axis=1)
+        cluster_membership = corr_sq_table.apply(lambda x: x == corr_max)
 
         new_child_clusters = [
             Cluster(dataframe=full_dataframe,
@@ -199,14 +201,14 @@ class VarClus(BaseDecompositionClass):
 
         # Check if clusters are unchanged
         old_cluster_features = set([
-            tuple(cluster.features) for cluster in initial_child_clusters
+            tuple(cluster.features.sort() or cluster.features) for cluster in initial_child_clusters
         ])
 
         new_cluster_features = set([
-            tuple(cluster.features) for cluster in new_child_clusters
+            tuple(cluster.features.sort() or cluster.features) for cluster in new_child_clusters
         ])
 
-        return new_child_clusters, old_cluster_features == new_cluster_features
+        return new_child_clusters, old_cluster_features != new_cluster_features
 
     @staticmethod
     def nearest_component_sorting(initial_child_clusters, max_tries=None):
@@ -230,8 +232,9 @@ class VarClus(BaseDecompositionClass):
             cluster.run_pca()
 
         corr_table = pd.concat(cluster.pca_corr, axis=1)
-        corr_max = corr_table.max(axis=1)
-        cluster_membership = corr_table.apply(lambda x: x == corr_max)
+        corr_sq_table = corr_table ** 2
+        corr_max = corr_sq_table.max(axis=1)
+        cluster_membership = corr_sq_table.apply(lambda x: x == corr_max)
 
         child_clusters = [
             Cluster(dataframe=cluster.dataframe,
