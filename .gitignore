@@ -6,3 +6,6 @@
 
 # pycharm settings
 .idea
+
+# venv
+venv/*.*
