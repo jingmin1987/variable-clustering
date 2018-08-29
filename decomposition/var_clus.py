@@ -1,5 +1,5 @@
 # Definition for class VarClus
-# TODO: add log function, and docstrings, and cleanup the prints
+# TODO: add log function and cleanup the prints
 
 
 import pandas as pd
@@ -11,12 +11,14 @@ from decomposition.base_class import BaseDecompositionClass
 
 class Cluster:
     """
-    A tree-node type container that is capable of decomposing itself based on PCA and holds the following information
+    A tree-node type container that is capable of decomposing itself based on PCA and holds the
+    following information
         - features in this cluster
         - first n PCA components and their corresponding eigenvalues
     """
 
-    def __init__(self, dataframe, n_split=2, feature_list=None, parents=None, children=None, name=None):
+    def __init__(self, dataframe, n_split=2, feature_list=None, parents=None, children=None,
+                 name=None):
         """
 
         :param dataframe: A pandas dataframe
@@ -44,7 +46,7 @@ class Cluster:
         """
         A wrapper around sklearn.decomposition.PCA.fit().
 
-        Additionally, it calculates the first n_split eigenvectors
+        Additionally, it calculates the first n_split PCA components
 
         :return:
         """
@@ -98,8 +100,18 @@ class Cluster:
 
 class VarClus(BaseDecompositionClass):
     """
-    A class that does oblique hierarchical decomposition of a feature space based on PCA. The general algorithm is
-        1.
+    A class that does oblique hierarchical decomposition of a feature space based on PCA.
+    The general algorithm is
+        1. Conducts PCA on current feature space. If the max eigenvalue is smaller than threshold,
+            stop decomposition
+        2. Calculates the first N PCA components and assign features to these components based on
+            absolute correlation from high to low. These components are the initial centroids of
+            these child clusters.
+        3. After initial assignment, the algorithm conducts an iterative assignment called Nearest
+            Component Sorting (NCS). Basically, the centroid vectors are re-computed as the first
+            components of the child clusters and the algorithm will re-assign each of the feature
+            based on the same correlation rule.
+        4. After NCS,
     """
 
     def __init__(self, n_split=2, max_eigenvalue=1, max_tries=None):
@@ -117,9 +129,22 @@ class VarClus(BaseDecompositionClass):
 
     @staticmethod
     def reassign_one_feature_pca(cluster_from, cluster_to, feature, other_clusters=None):
+        """
+        Tries to re-assign a feature from a cluster to the other cluster to see if total
+        explained variance of all clusters (represented by the first PCA component)is increased.
+        If increased, the re-assignment will stay
+
+        :param cluster_from: The cluster where the feature comes from
+        :param cluster_to: The cluster where the feature will join
+        :param feature: Feature to be tested
+        :param other_clusters: Other clusters for calculating total explained variance
+        :return: Original or new cluster_from and cluster_to
+        """
+
         if not (feature in cluster_from.features):
             return cluster_from, cluster_to
 
+        # This shouldn't happen when calling decompose()
         if feature in cluster_to.features:
             print('feature {} is already in cluster_to'.format(feature))
             return cluster_from, cluster_to
@@ -137,14 +162,15 @@ class VarClus(BaseDecompositionClass):
                                  n_split=cluster_to.n_split,
                                  parents=cluster_to.parents)
 
+        # This shouldn't happen logically
         if len(cluster_from.features + cluster_to.features) != \
-            len(cluster_from_new.features + cluster_to_new.features):
+           len(cluster_from_new.features + cluster_to_new.features):
             missing_feature = set(cluster_from.features + cluster_to.features) - \
                 set(cluster_from_new.features + cluster_to_new.features)
             print('feature missing....the missing feature is...{}').format(missing_feature)
 
         for cluster in [cluster_from, cluster_from_new, cluster_to, cluster_to_new]:
-            if not getattr(cluster, 'pca', False):
+            if cluster.pca is None:
                 cluster.run_pca()
 
         explained_variance_before_assignment = np.sum(
@@ -167,6 +193,16 @@ class VarClus(BaseDecompositionClass):
 
     @staticmethod
     def reassign_features_pca(child_clusters, max_tries=None):
+        """
+        Iteratively assesses if a re-assignment of a feature is going to increase the total
+        variance explained of the child clusters. The variance explained by a child cluster is
+        the variance explained by the first PCA component
+
+        :param child_clusters: A list of clusters
+        :param max_tries: Number of max tries before the algorithm gives up
+        :return: New or original list of clusters
+        """
+
         if len(child_clusters) < 2:
             return child_clusters
 
@@ -209,19 +245,30 @@ class VarClus(BaseDecompositionClass):
 
     @staticmethod
     def nearest_component_sorting_once(initial_child_clusters):
+        """
+        Updates the centroids of the initial child clusters and re-assigns the features to the
+        clusters with updated centroids based on absolute correlation
+
+        :param initial_child_clusters: A list of initial child clusters
+        :return: A new list of child clusters and boolean indicating if the clusters have been
+            updated or not
+        """
+
         for cluster in initial_child_clusters:
-            if not getattr(cluster, 'pca', False):
+            if cluster.pca is None:
                 cluster.run_pca()
 
         full_dataframe = pd.concat(
             [cluster.dataframe for cluster in initial_child_clusters],
             axis=1
         )
+
         corr_table = pd.concat(
             [full_dataframe.corrwith(cluster.pca_features[0]) for cluster in
              initial_child_clusters],
             axis=1
         )
+
         corr_sq_table = corr_table ** 2
         corr_max = corr_sq_table.max(axis=1)
         cluster_membership = corr_sq_table.apply(lambda x: x == corr_max)
@@ -257,6 +304,15 @@ class VarClus(BaseDecompositionClass):
 
     @staticmethod
     def nearest_component_sorting(initial_child_clusters, max_tries=None):
+        """
+        Iteratively assigns features to the child clusters based on re-computed centroids of each
+        child cluster
+
+        :param initial_child_clusters: A list of initial child clusters
+        :param max_tries: Number of max tries before it gives up
+        :return: Updated list of child clusters
+        """
+
         n_tries = 0
         change_flag = True
         new_child_clusters = initial_child_clusters
@@ -273,6 +329,14 @@ class VarClus(BaseDecompositionClass):
 
     @staticmethod
     def one_step_decompose(cluster, max_tries=None):
+        """
+        Algorithm that conducts one-time decomposition of the cluster.
+
+        :param cluster: A cluster to be decomposed
+        :param max_tries: Number of max tries during re-assigning phase before it gives up
+        :return: A list of child clusters of this cluster after decomposition
+        """
+
         if not getattr(cluster, 'pca', False):
             cluster.run_pca()
 
@@ -319,7 +383,7 @@ class VarClus(BaseDecompositionClass):
         :param cluster: An instance of Cluster class that represents a feature space
         :param max_eigenvalue: Eigenvalue threshold below which the decomposition will be stopped
         :param max_tries: Max number of tries when re-assigning features before it gives up
-        :return: 
+        :return:
         """
 
         if cluster.pca is None:
