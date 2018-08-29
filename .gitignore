@@ -2,10 +2,12 @@
 .ipynb_checkpoints
 
 # notebooks
-.ipynb
+*.ipynb
 
 # pycharm settings
 .idea
 
 # venv
-venv/*.*
+venv
+__pycache__
+decomposition/__pycache__/
