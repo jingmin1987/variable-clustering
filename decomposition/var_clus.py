@@ -11,7 +11,7 @@ from decomposition.base_class import BaseDecompositionClass
 
 class Cluster:
     """
-    A tree-node type container that holds the following information
+    A tree-node type container that is capable of decomposing itself based on PCA and holds the following information
         - features in this cluster
         - first n PCA components and their corresponding eigenvalues
     """
@@ -34,6 +34,9 @@ class Cluster:
         self.parents = parents or []
         self.children = children or []
         self.name = name or ''
+        self.pca = None
+        self.pca_features = []
+        self.pca_corr = []
 
         self.input_check()
 
@@ -48,8 +51,6 @@ class Cluster:
 
         self.pca = PCA(n_components=self.n_split)
         self.pca = self.pca.fit(self.dataframe)
-        self.pca_features = []
-        self.pca_corr = []
 
         for i in range(self.n_split):
             self.pca_features.append(self.dataframe.dot(self.pca.components_[i]))
@@ -312,12 +313,21 @@ class VarClus(BaseDecompositionClass):
 
     @staticmethod
     def __decompose(cluster, max_eigenvalue, max_tries):
-        if not getattr(cluster, 'pca', False):
+        """
+        Main recursive function to decompose a feature space based on certain rules.
+
+        :param cluster: An instance of Cluster class that represents a feature space
+        :param max_eigenvalue: Eigenvalue threshold below which the decomposition will be stopped
+        :param max_tries: Max number of tries when re-assigning features before it gives up
+        :return: 
+        """
+
+        if cluster.pca is None:
             cluster.run_pca()
 
         if cluster.pca.explained_variance_[-1] >= max_eigenvalue and \
-            len(cluster.features) >= cluster.n_split and \
-            len(cluster.features) > 1:
+           len(cluster.features) >= cluster.n_split and \
+           len(cluster.features) > 1:
 
             print('decomposing cluster with hash {}'.format(cluster.__hash__()))
             cluster.children = VarClus.one_step_decompose(cluster, max_tries=max_tries)
@@ -346,9 +356,15 @@ class VarClus(BaseDecompositionClass):
 
     @property
     def final_cluster_structure(self):
-        if not getattr(self, 'cluster', False):
-            print('cluster was not fitted yet')
-            return dict()
+        """
+        Gets the final cluster structure after decomposition
+
+        :return:
+        """
+
+        if not self.cluster:
+            print('Please decompose the feature space first. Empty ')
+            return []
 
         return self.cluster.return_all_leaves()
 
