@@ -16,10 +16,19 @@ class Cluster:
         - first n PCA components and their corresponding eigenvalues
     """
 
-    def __init__(self, dataframe, n_split=2, features=None, parents=None, children=None, name=None):
+    def __init__(self, dataframe, n_split=2, feature_list=None, parents=None, children=None, name=None):
+        """
+
+        :param dataframe: A pandas dataframe
+        :param n_split: Number of sub-clusters every time a cluster is split
+        :param feature_list: A list of feature names
+        :param parents: A list of parents to this cluster, if any
+        :param children: A list of children to this cluster, if any
+        :param name: Name of the cluster
+        """
 
         # Using dataframe.columns will generate an index-list which is not convertible to set
-        self.features = features or list(dataframe)
+        self.features = feature_list or list(dataframe)
         self.dataframe = dataframe[self.features]
         self.n_split = n_split
         self.parents = parents or []
@@ -29,6 +38,14 @@ class Cluster:
         self.input_check()
 
     def run_pca(self):
+        """
+        A wrapper around sklearn.decomposition.PCA.fit().
+
+        Additionally, it calculates the first n_split eigenvectors
+
+        :return:
+        """
+
         self.pca = PCA(n_components=self.n_split)
         self.pca = self.pca.fit(self.dataframe)
         self.pca_features = []
@@ -39,15 +56,30 @@ class Cluster:
             self.pca_corr.append(self.dataframe.corrwith(self.pca_features[i]))
 
     def input_check(self):
+        """
+        Checks the input against below rules
+            1. If the features is a list
+            2. If len(features) is greater than n_split
+
+        :return:
+        """
+
         if type(self.features) is not list:
+            print('Input argument features is not a list. Wrapping it in a list')
             self.features = [self.features]
 
         if len(self.features) < self.n_split:
-            print('number of features is smaller than n_split')
+            print('Number of features is smaller than n_split, setting n_split = len(features)')
             self.n_split = len(self.features)
 
     def return_all_leaves(self):
-        if self.children == []:
+        """
+        Returns all terminal child leaves. If no children, returns self
+
+        :return: A list of terminal child leaves if any. Otherwise, returns [self]
+        """
+
+        if not self.children:
             return [self]
 
         child_leaves_nested = [child.return_all_leaves() for child in self.children]
@@ -64,10 +96,23 @@ class Cluster:
 
 
 class VarClus(BaseDecompositionClass):
+    """
+    A class that does oblique hierarchical decomposition of a feature space based on PCA. The general algorithm is
+        1.
+    """
+
     def __init__(self, n_split=2, max_eigenvalue=1, max_tries=None):
+        """
+
+        :param n_split: Number of sub-clusters every time a cluster is split
+        :param max_eigenvalue:
+        :param max_tries:
+        """
+
         self.n_split = n_split
         self.max_eigenvalue = max_eigenvalue
         self.max_tries = max_tries
+        self.cluster = None
 
     @staticmethod
     def reassign_one_feature_pca(cluster_from, cluster_to, feature, other_clusters=None):
@@ -190,9 +235,9 @@ class VarClus(BaseDecompositionClass):
         new_child_clusters = [
             Cluster(dataframe=full_dataframe,
                     n_split=initial_child_clusters[0].n_split,
-                    features=[feature for (feature, condition)
-                              in cluster_membership[membership].to_dict().items()
-                              if condition],
+                    feature_list=[feature for (feature, condition)
+                                  in cluster_membership[membership].to_dict().items()
+                                  if condition],
                     parents=initial_child_clusters[0].parents,
                     name='{0}-{1}'.format(initial_child_clusters[0].parents[0].name, str(i)))
             for i, membership in enumerate(cluster_membership)
@@ -245,9 +290,9 @@ class VarClus(BaseDecompositionClass):
         child_clusters = [
             Cluster(dataframe=cluster.dataframe,
                     n_split=cluster.n_split,
-                    features=[feature for (feature, condition)
-                              in cluster_membership[membership].to_dict().items()
-                              if condition],
+                    feature_list=[feature for (feature, condition)
+                                  in cluster_membership[membership].to_dict().items()
+                                  if condition],
                     parents=[cluster],
                     name='{0}-{1}'.format(cluster.name, str(i)))
             for i, membership in enumerate(cluster_membership)
@@ -284,9 +329,9 @@ class VarClus(BaseDecompositionClass):
 
     def decompose(self, dataframe):
         """
-        Decomposes given dataframe in an oblique hierarchical way.
+        Decomposes a given dataframe in an oblique hierarchical way.
 
-        :param dataframe: feature space that needs to be decomposed
+        :param dataframe: a pandas dataframe that contains the feature space
         """
 
         self.cluster = Cluster(dataframe,
