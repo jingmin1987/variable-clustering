@@ -130,7 +130,7 @@ class VarClus(BaseDecompositionClass):
         self.cluster = None
 
     @staticmethod
-    def reassign_one_feature_pca(cluster_from, cluster_to, feature, other_clusters=3):
+    def reassign_one_feature_pca(cluster_from, cluster_to, feature, other_clusters=None):
         """
         Tries to re-assign a feature from a cluster to the other cluster to see if total
         explained variance of all clusters (represented by the first PCA component)is increased.
@@ -153,16 +153,22 @@ class VarClus(BaseDecompositionClass):
 
         print('assessing feature {}'.format(feature))
 
+        for cluster in other_clusters:
+            if cluster.pca is None:
+                cluster.run_pca()
+
         other_clusters = other_clusters or []
 
         cluster_from_new_df = cluster_from.dataframe.drop(feature, axis=1)
         cluster_to_new_df = cluster_to.dataframe.join(cluster_from.dataframe[feature])
         cluster_from_new = Cluster(dataframe=cluster_from_new_df,
                                    n_split=cluster_from.n_split,
-                                   parents=cluster_from.parents)
+                                   parents=cluster_from.parents,
+                                   name=cluster_from.name)
         cluster_to_new = Cluster(dataframe=cluster_to_new_df,
                                  n_split=cluster_to.n_split,
-                                 parents=cluster_to.parents)
+                                 parents=cluster_to.parents,
+                                 name=cluster_to.name)
 
         # This shouldn't happen logically
         if len(cluster_from.features + cluster_to.features) != \
@@ -176,13 +182,13 @@ class VarClus(BaseDecompositionClass):
                 cluster.run_pca()
 
         explained_variance_before_assignment = np.sum(
-            [cluster.pca.explained_variance_[0] for cluster in ([cluster_from, cluster_to]
-                                                                + other_clusters)],
+            [cluster.pca.explained_variance_[0] for cluster in
+             [cluster_from, cluster_to] + other_clusters],
         )
 
         explained_variance_after_assignment = np.sum(
-            [cluster.pca.explained_variance_[0] for cluster in ([cluster_from_new, cluster_to_new]
-                                                                + other_clusters)],
+            [cluster.pca.explained_variance_[0] for cluster in
+             [cluster_from_new, cluster_to_new] + other_clusters],
         )
 
         print('current EV is {0}, new EV is {1}'.format(explained_variance_before_assignment,
@@ -222,15 +228,14 @@ class VarClus(BaseDecompositionClass):
                     if i == j:
                         continue
 
-                    remaining_clusters = list(set(child_clusters)
-                                              - {child_clusters[i], child_clusters[j]})
-                    print('there are {} remaining clusters'.format(len(remaining_clusters)))
+                    other_clusters = \
+                        list(set(child_clusters) - {child_clusters[i], child_clusters[j]})
+
                     child_clusters[i], child_clusters[j], change_flag = \
                         VarClus.reassign_one_feature_pca(child_clusters[i],
                                                          child_clusters[j],
                                                          feature,
-                                                         remaining_clusters)
-                    # TODO: log
+                                                         other_clusters)
                     if change_flag:
                         print('Feature {} was re-assigned'.format(feature))
                         print('child_clusters[i] has {0} features and child_clusters[j] has {1} ' \
@@ -277,8 +282,8 @@ class VarClus(BaseDecompositionClass):
         cluster_membership = corr_sq_table.apply(lambda x: x == corr_max)
 
         if (cluster_membership.sum() == 0).sum():
-            print('Features of this cluster are almost parallel. Consider increasing '
-                  'max_eigenvalue. Randomly assigning features to child clusters...')
+            print('Features of this cluster are most correlated with first PCA component. Consider '
+                  'increasing max_eigenvalue. Randomly assigning features to child clusters...')
 
             i_range, j_range = cluster_membership.shape
             for i in range(i_range):
@@ -346,8 +351,8 @@ class VarClus(BaseDecompositionClass):
         cluster_membership = corr_sq_table.apply(lambda x: x == corr_max)
 
         if (cluster_membership.sum() == 0).sum():
-            print('Features of this cluster are almost parallel. Consider increasing '
-                  'max_eigenvalue. Randomly assigning features to child clusters...')
+            print('Features of this cluster are most correlated with first PCA component. Consider '
+                  'increasing max_eigenvalue. Randomly assigning features to child clusters...')
 
             i_range, j_range = cluster_membership.shape
             for i in range(i_range):
@@ -378,7 +383,7 @@ class VarClus(BaseDecompositionClass):
         return child_clusters
 
     @staticmethod
-    def __decompose(cluster, max_eigenvalue, max_tries):
+    def _decompose(cluster, max_eigenvalue, max_tries):
         """
         Main recursive function to decompose a feature space based on certain rules.
 
@@ -399,9 +404,9 @@ class VarClus(BaseDecompositionClass):
             cluster.children = VarClus.one_step_decompose(cluster, max_tries=max_tries)
 
             for child_cluster in cluster.children:
-                VarClus.__decompose(child_cluster,
-                                    max_eigenvalue,
-                                    max_tries)
+                VarClus._decompose(child_cluster,
+                                   max_eigenvalue,
+                                   max_tries)
 
     def decompose(self, dataframe):
         """
@@ -416,9 +421,9 @@ class VarClus(BaseDecompositionClass):
                                self.n_split,
                                name='cluster-0')
 
-        VarClus.__decompose(self.cluster,
-                            self.max_eigenvalue,
-                            self.max_tries)
+        VarClus._decompose(self.cluster,
+                           self.max_eigenvalue,
+                           self.max_tries)
 
         return self.cluster
 
