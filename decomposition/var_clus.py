@@ -116,7 +116,7 @@ class VarClus(BaseDecompositionClass):
             PCA component of each child cluster by re-assigning features across clusters
     """
 
-    def __init__(self, n_split=2, max_eigenvalue=1, max_tries=None):
+    def __init__(self, n_split=2, max_eigenvalue=1, max_tries=3):
         """
 
         :param n_split: Number of sub-clusters that every time a cluster is split into
@@ -130,7 +130,7 @@ class VarClus(BaseDecompositionClass):
         self.cluster = None
 
     @staticmethod
-    def reassign_one_feature_pca(cluster_from, cluster_to, feature, other_clusters=None):
+    def reassign_one_feature_pca(cluster_from, cluster_to, feature, other_clusters=3):
         """
         Tries to re-assign a feature from a cluster to the other cluster to see if total
         explained variance of all clusters (represented by the first PCA component)is increased.
@@ -194,7 +194,7 @@ class VarClus(BaseDecompositionClass):
             return cluster_from, cluster_to, False
 
     @staticmethod
-    def reassign_features_pca(child_clusters, max_tries=None):
+    def reassign_features_pca(child_clusters, max_tries=3):
         """
         Iteratively assesses if a re-assignment of a feature is going to increase the total
         variance explained of the child clusters. The variance explained by a child cluster is
@@ -232,7 +232,7 @@ class VarClus(BaseDecompositionClass):
                                                          remaining_clusters)
                     # TODO: log
                     if change_flag:
-                        print('feature {} was re-assigned'.format(feature))
+                        print('Feature {} was re-assigned'.format(feature))
                         print('child_clusters[i] has {0} features and child_clusters[j] has {1} ' \
                               'features'.format(len(child_clusters[i].features),
                                                 len(child_clusters[j].features)))
@@ -241,6 +241,7 @@ class VarClus(BaseDecompositionClass):
                         n_tries += 1
 
                     if max_tries and n_tries >= max_tries:
+                        print('Number of max tries has been reached. Returning current result...')
                         return child_clusters
 
         return child_clusters
@@ -276,7 +277,9 @@ class VarClus(BaseDecompositionClass):
         cluster_membership = corr_sq_table.apply(lambda x: x == corr_max)
 
         if (cluster_membership.sum() == 0).sum():
-            print('Near orthogonal feature clusters detected in NCS phase. Randomizing...')
+            print('Features of this cluster are almost parallel. Consider increasing '
+                  'max_eigenvalue. Randomly assigning features to child clusters...')
+
             i_range, j_range = cluster_membership.shape
             for i in range(i_range):
                 for j in range(j_range):
@@ -325,7 +328,7 @@ class VarClus(BaseDecompositionClass):
         return new_child_clusters
 
     @staticmethod
-    def one_step_decompose(cluster, max_tries=None):
+    def one_step_decompose(cluster, max_tries=3):
         """
         Algorithm that conducts one-time decomposition of the cluster.
 
@@ -334,7 +337,7 @@ class VarClus(BaseDecompositionClass):
         :return: A list of child clusters of this cluster after decomposition
         """
 
-        if not getattr(cluster, 'pca', False):
+        if cluster.pca is None:
             cluster.run_pca()
 
         corr_table = pd.concat(cluster.pca_corr, axis=1)
@@ -343,7 +346,9 @@ class VarClus(BaseDecompositionClass):
         cluster_membership = corr_sq_table.apply(lambda x: x == corr_max)
 
         if (cluster_membership.sum() == 0).sum():
-            print('Near orthogonal feature clusters detected in NCS phase. Randomizing...')
+            print('Features of this cluster are almost parallel. Consider increasing '
+                  'max_eigenvalue. Randomly assigning features to child clusters...')
+
             i_range, j_range = cluster_membership.shape
             for i in range(i_range):
                 for j in range(j_range):
@@ -390,7 +395,7 @@ class VarClus(BaseDecompositionClass):
            len(cluster.features) >= cluster.n_split and \
            len(cluster.features) > 1:
 
-            print('decomposing cluster with hash {}'.format(cluster.__hash__()))
+            print('decomposing cluster {}'.format(cluster.name))
             cluster.children = VarClus.one_step_decompose(cluster, max_tries=max_tries)
 
             for child_cluster in cluster.children:
