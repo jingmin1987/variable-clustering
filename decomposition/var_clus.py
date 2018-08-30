@@ -305,13 +305,12 @@ class VarClus(BaseDecompositionClass):
         return new_child_clusters, old_cluster_features != new_cluster_features
 
     @staticmethod
-    def nearest_component_sorting(initial_child_clusters, max_tries=None):
+    def nearest_component_sorting(initial_child_clusters):
         """
         Iteratively assigns features to the child clusters based on re-computed centroids of each
         child cluster
 
         :param initial_child_clusters: A list of initial child clusters
-        :param max_tries: Number of max tries before it gives up
         :return: Updated list of child clusters
         """
 
@@ -322,10 +321,6 @@ class VarClus(BaseDecompositionClass):
         while change_flag:
             new_child_clusters, change_flag = \
                 VarClus.nearest_component_sorting_once(new_child_clusters)
-
-            n_tries += 1
-            if max_tries and n_tries >= max_tries:
-                break
 
         return new_child_clusters
 
@@ -368,7 +363,7 @@ class VarClus(BaseDecompositionClass):
         # Phase 1: nearest component sorting
         print('phase #1: NCS')
         child_clusters = \
-            VarClus.nearest_component_sorting(child_clusters, max_tries=max_tries)
+            VarClus.nearest_component_sorting(child_clusters)
 
         # Phase 2: search algorithm
         print('phase #2: Search')
@@ -410,7 +405,7 @@ class VarClus(BaseDecompositionClass):
         :param dataframe: a pandas dataframe that contains the feature space
         """
 
-        scaled_dataframe = pd.DataFrame(scale(dataframe), dataframe.columns)
+        scaled_dataframe = pd.DataFrame(scale(dataframe), columns=dataframe.columns)
 
         self.cluster = Cluster(scaled_dataframe,
                                self.n_split,
