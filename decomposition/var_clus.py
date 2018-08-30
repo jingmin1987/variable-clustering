@@ -5,6 +5,7 @@
 import pandas as pd
 import numpy as np
 from sklearn.decomposition import PCA
+from sklearn.preprocessing import scale
 
 from decomposition.base_class import BaseDecompositionClass
 
@@ -111,15 +112,16 @@ class VarClus(BaseDecompositionClass):
             Component Sorting (NCS). Basically, the centroid vectors are re-computed as the first
             components of the child clusters and the algorithm will re-assign each of the feature
             based on the same correlation rule.
-        4. After NCS,
+        4. After NCS, the algorithm tries to increase the total variance explained by the first
+            PCA component of each child cluster by re-assigning features across clusters
     """
 
     def __init__(self, n_split=2, max_eigenvalue=1, max_tries=None):
         """
 
-        :param n_split: Number of sub-clusters every time a cluster is split
-        :param max_eigenvalue:
-        :param max_tries:
+        :param n_split: Number of sub-clusters that every time a cluster is split into
+        :param max_eigenvalue: Eigenvalue threshold below which the decomposition will be stopped
+        :param max_tries: Number of max tries before the algorithm gives up
         """
 
         self.n_split = n_split
@@ -403,12 +405,14 @@ class VarClus(BaseDecompositionClass):
 
     def decompose(self, dataframe):
         """
-        Decomposes a given dataframe in an oblique hierarchical way.
+        Scales and decomposes a given dataframe in an oblique hierarchical way.
 
         :param dataframe: a pandas dataframe that contains the feature space
         """
 
-        self.cluster = Cluster(dataframe,
+        scaled_dataframe = scale(dataframe)
+
+        self.cluster = Cluster(scaled_dataframe,
                                self.n_split,
                                name='cluster-0')
 
