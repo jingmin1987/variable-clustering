@@ -410,7 +410,7 @@ class VarClus(BaseDecompositionClass):
         :param dataframe: a pandas dataframe that contains the feature space
         """
 
-        scaled_dataframe = scale(dataframe)
+        scaled_dataframe = pd.DataFrame(scale(dataframe), dataframe.columns)
 
         self.cluster = Cluster(scaled_dataframe,
                                self.n_split,
