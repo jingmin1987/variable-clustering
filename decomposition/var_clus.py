@@ -1,6 +1,6 @@
-# Definition for class VarClus
-# TODO: add log function and cleanup the prints
-
+"""
+Class definitions used for VarClus
+"""
 
 import pandas as pd
 import numpy as np
