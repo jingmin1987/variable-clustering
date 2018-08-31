@@ -38,8 +38,8 @@ class Cluster:
         self.children = children or []
         self.name = name or ''
         self.pca = None
-        self.pca_features = []
-        self.pca_corr = []
+        self._pca_features = []
+        self._pca_corr = []
 
         self.input_check()
 
@@ -52,18 +52,20 @@ class Cluster:
         :return:
         """
 
-        if len(self.features) < self.n_split:
+        if not self.features:
+            print('No features to conduct PCA')
+            return
+        elif len(self.features) < self.n_split:
             print('Number of features is smaller than n_split, reducing n_split temporarily')
             n_split = len(self.features)
         else:
             n_split = self.n_split
 
-        self.pca = PCA(n_components=n_split)
-        self.pca = self.pca.fit(self.dataframe)
+        self.pca = PCA(n_components=n_split).fit(self.dataframe)
 
         for i in range(n_split):
-            self.pca_features.append(self.dataframe.dot(self.pca.components_[i]))
-            self.pca_corr.append(self.dataframe.corrwith(self.pca_features[i]))
+            self._pca_features.append(self.dataframe.dot(self.pca.components_[i]))
+            self._pca_corr.append(self.dataframe.corrwith(self._pca_features[i]))
 
     def input_check(self):
         """
@@ -90,6 +92,36 @@ class Cluster:
         child_leaves_nested = [child.return_all_leaves() for child in self.children]
         return [leaf for leaves in child_leaves_nested for leaf in leaves]
 
+    @property
+    def pca_eigenvalues(self):
+        if not self.features:
+            return [0]
+        else:
+            if self.pca is None:
+                self.run_pca()
+
+            return self.pca.explained_variance_
+
+    @property
+    def pca_features(self):
+        if not self.features:
+            return []
+        else:
+            if self.pca is None:
+                self.run_pca()
+
+            return self._pca_features
+
+    @property
+    def pca_corr(self):
+        if not self.features:
+            return []
+        else:
+            if self.pca is None:
+                self.run_pca()
+
+            return self._pca_corr
+    
     def __key(self):
         return (tuple(self.features), self.dataframe.shape)
 
@@ -154,12 +186,7 @@ class VarClus(BaseDecompositionClass):
 
         print('assessing feature {}'.format(feature))
 
-        for cluster in other_clusters:
-            if cluster.pca is None:
-                cluster.run_pca()
-
         other_clusters = other_clusters or []
-
         cluster_from_new_df = cluster_from.dataframe.drop(feature, axis=1)
         cluster_to_new_df = cluster_to.dataframe.join(cluster_from.dataframe[feature])
         cluster_from_new = Cluster(dataframe=cluster_from_new_df,
@@ -178,18 +205,13 @@ class VarClus(BaseDecompositionClass):
                 set(cluster_from_new.features + cluster_to_new.features)
             print('feature missing....the missing feature is...{}').format(missing_feature)
 
-        for cluster in [cluster_from, cluster_from_new, cluster_to, cluster_to_new]:
-            if cluster.pca is None:
-                cluster.run_pca()
-
         explained_variance_before_assignment = np.sum(
-            [cluster.pca.explained_variance_[0] for cluster in
-             [cluster_from, cluster_to] + other_clusters],
+            [cluster.pca_eigenvalues[0] for cluster in [cluster_from, cluster_to] + other_clusters],
         )
 
         explained_variance_after_assignment = np.sum(
-            [cluster.pca.explained_variance_[0] for cluster in
-             [cluster_from_new, cluster_to_new] + other_clusters],
+            [cluster.pca_eigenvalues[0] for cluster in
+            [cluster_from_new, cluster_to_new] + other_clusters],
         )
 
         print('current EV is {0}, new EV is {1}'.format(explained_variance_before_assignment,
@@ -239,9 +261,11 @@ class VarClus(BaseDecompositionClass):
                                                          other_clusters)
                     if change_flag:
                         print('Feature {} was re-assigned'.format(feature))
-                        print('child_clusters[i] has {0} features and child_clusters[j] has {1} ' \
-                              'features'.format(len(child_clusters[i].features),
-                                                len(child_clusters[j].features)))
+                        print('{name_0} has {number_0} features and name_1 has {number_1} ' \
+                              'features'.format(name_0=child_clusters[i].name,
+                                                number_0=len(child_clusters[i].features),
+                                                name_1=child_clusters[j].name,
+                                                number_1=len(child_clusters[j].features)))
 
                     if not change_flag:
                         n_tries += 1
@@ -263,13 +287,8 @@ class VarClus(BaseDecompositionClass):
             updated or not
         """
 
-        for cluster in initial_child_clusters:
-            if cluster.pca is None:
-                cluster.run_pca()
-
         full_dataframe = pd.concat(
-            [cluster.dataframe for cluster in initial_child_clusters],
-            axis=1
+            [cluster.dataframe for cluster in initial_child_clusters], axis=1
         )
 
         corr_table = pd.concat(
@@ -343,9 +362,6 @@ class VarClus(BaseDecompositionClass):
         :return: A list of child clusters of this cluster after decomposition
         """
 
-        if cluster.pca is None:
-            cluster.run_pca()
-
         corr_table = pd.concat(cluster.pca_corr, axis=1)
         corr_sq_table = corr_table ** 2
         corr_max = corr_sq_table.max(axis=1)
@@ -394,12 +410,9 @@ class VarClus(BaseDecompositionClass):
         :return:
         """
 
-        if cluster.pca is None:
-            cluster.run_pca()
-
         if len(cluster.features) >= cluster.n_split and \
            len(cluster.features) > 1 and \
-           cluster.pca.explained_variance_[-1] >= max_eigenvalue:
+           cluster.pca_eigenvalues[-1] >= max_eigenvalue:
                 print('decomposing cluster {}'.format(cluster.name))
                 cluster.children = VarClus.one_step_decompose(cluster, max_tries=max_tries)
 
