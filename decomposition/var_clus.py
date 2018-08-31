@@ -395,17 +395,16 @@ class VarClus(BaseDecompositionClass):
         if cluster.pca is None:
             cluster.run_pca()
 
-        if cluster.pca.explained_variance_[-1] >= max_eigenvalue and \
-           len(cluster.features) >= cluster.n_split and \
-           len(cluster.features) > 1:
+        if len(cluster.features) >= cluster.n_split and \
+           len(cluster.features) > 1 and \
+           cluster.pca.explained_variance_[-1] >= max_eigenvalue:
+                print('decomposing cluster {}'.format(cluster.name))
+                cluster.children = VarClus.one_step_decompose(cluster, max_tries=max_tries)
 
-            print('decomposing cluster {}'.format(cluster.name))
-            cluster.children = VarClus.one_step_decompose(cluster, max_tries=max_tries)
-
-            for child_cluster in cluster.children:
-                VarClus._decompose(child_cluster,
-                                   max_eigenvalue,
-                                   max_tries)
+                for child_cluster in cluster.children:
+                    VarClus._decompose(child_cluster,
+                                       max_eigenvalue,
+                                       max_tries)
 
     def decompose(self, dataframe):
         """
