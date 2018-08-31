@@ -53,13 +53,15 @@ class Cluster:
         """
 
         if len(self.features) < self.n_split:
-            print('Number of features is smaller than n_split, cannot conduct PCA')
-            return
+            print('Number of features is smaller than n_split, reducing n_split temporarily')
+            n_split = len(self.features)
+        else:
+            n_split = self.n_split
 
-        self.pca = PCA(n_components=self.n_split)
+        self.pca = PCA(n_components=n_split)
         self.pca = self.pca.fit(self.dataframe)
 
-        for i in range(self.n_split):
+        for i in range(n_split):
             self.pca_features.append(self.dataframe.dot(self.pca.components_[i]))
             self.pca_corr.append(self.dataframe.corrwith(self.pca_features[i]))
 
