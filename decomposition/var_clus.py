@@ -121,7 +121,7 @@ class Cluster:
                 self.run_pca()
 
             return self._pca_corr
-    
+
     def __key(self):
         return (tuple(self.features), self.dataframe.shape)
 
