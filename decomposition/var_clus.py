@@ -441,6 +441,41 @@ class VarClus(BaseDecompositionClass):
 
         return self.cluster.return_all_leaves()
 
+    @staticmethod
+    def _print_cluster_structure(root_cluster, prefix='', h_space=5):
+        """
+        Prints the hierarchical structure below a given root cluster
 
+        :param root_cluster: An instance of Cluster class
+        :param prefix: String to be prefixed for each print
+        :param h_space: Horizontal spacing or indentation for each sub level
+        :return: A printout that shows the decomposition of the feature space
+        """
+
+        if root_cluster.children:
+            for index, child_cluster in enumerate(root_cluster.children):
+                print(prefix + '|')
+                print(prefix + '|' + '-' * h_space + child_cluster.name)
+
+                if index == len(root_cluster.children) - 1:
+                    new_prefix = prefix + ' ' * (h_space + 1)
+                else:
+                    new_prefix = prefix + '|' + ' ' * h_space
+
+                VarClus._print_cluster_structure(child_cluster, prefix=new_prefix, h_space=h_space)
+        else:
+            for feature in root_cluster.features:
+                print(prefix + '|' + '-' * h_space + feature)
+
+    def print_cluster_structure(self, h_space=5):
+        """
+        Prints the hierarchical structure of the decomposition
+
+        :param h_space: Horizontal spacing or indentation for each sub level
+        :return: A printout that shows the decomposition of the feature space
+        """
+
+        print(self.cluster.name)
+        VarClus._print_cluster_structure(self.cluster, h_space=h_space)
 
 
