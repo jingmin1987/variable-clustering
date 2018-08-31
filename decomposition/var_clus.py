@@ -52,7 +52,7 @@ class Cluster:
         :return:
         """
 
-        if len(self.features) > self.n_split:
+        if len(self.features) < self.n_split:
             print('Number of features is smaller than n_split, cannot conduct PCA')
             return
 
