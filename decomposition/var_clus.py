@@ -52,6 +52,10 @@ class Cluster:
         :return:
         """
 
+        if len(self.features) > self.n_split:
+            print('Number of features is smaller than n_split, cannot conduct PCA')
+            return
+
         self.pca = PCA(n_components=self.n_split)
         self.pca = self.pca.fit(self.dataframe)
 
@@ -63,7 +67,6 @@ class Cluster:
         """
         Checks the input against below rules
             1. If the features is a list
-            2. If len(features) is greater than n_split
 
         :return:
         """
@@ -71,10 +74,6 @@ class Cluster:
         if type(self.features) is not list:
             print('Input argument features is not a list. Wrapping it in a list')
             self.features = [self.features]
-
-        if len(self.features) < self.n_split:
-            print('Number of features is smaller than n_split, setting n_split = len(features)')
-            self.n_split = len(self.features)
 
     def return_all_leaves(self):
         """
